@@ -79,11 +79,11 @@
 ## 五、实验数据及处理结果
 ### （一）代码重构对比
 1.  **`M1DataPipeline`类主体结构**：
-   [![peGunu6.png](https://s41.ax1x.com/2026/04/01/peGunu6.png)](https://imgchr.com/i/peGunu6)
+[![peGBla4.png](https://s41.ax1x.com/2026/04/01/peGBla4.png)](https://imgchr.com/i/peGBla4)
     - 核心方法：`__init__()`、`extract()`、`transform()`、`load()`
     - 包含日志模块、异常处理、类型提示与Docstrings
 2.  **调用入口`run_m1_pipeline.py`**：
-   [![peGuk4J.png](https://s41.ax1x.com/2026/04/01/peGuk4J.png)](https://imgchr.com/i/peGuk4J)
+[![peGB1IJ.png](https://s41.ax1x.com/2026/04/01/peGB1IJ.png)](https://imgchr.com/i/peGB1IJ)
 
 
 ### （二）数据交叉验证记录
@@ -96,7 +96,7 @@
 ### （三）AI审计报告与代码修改
 | 优化项 | 说明 |
 |-------|---------|
-类型注解      | 统一为 Python 3.10+ 风格 (dict, `\
+类型注解 | 统一为 Python 3.10+ 风格 (dict, `\
 内存管理| 添加 __del__ 和 cleanup() 方法，run() 显式释放引用   
 批量收集 | _generate_summary 使用 pl.collect_all() 减少 collect 次数 
 环境变量 | 支持 M1_DATA_PATH 配置输入路径             
@@ -112,10 +112,10 @@ DEFAULT_OUTPUT_NAMES 常量 | 默认输出文件名配置
 __del__() 析构方法 | 对象销毁时自动清理缓存          
 cleanup() 方法 | 手动清理缓存和触发 GC           
 base_dir 参数 | 支持相对路径自动解析            
-output_names 参数              | 支持自定义输出文件名            
- argparse 命令行解析            | 支持 -i, -o, --explain, -v 参数
-M1_DATA_PATH 环境变量            | 支持通过环境变量配置输入路径    
-pl.Config.set_memory_limit()     | 配置 Polars 内存使用上限   
+output_names 参数| 支持自定义输出文件名            
+ argparse 命令行解析 | 支持 -i, -o, --explain, -v 参数
+M1_DATA_PATH 环境变量 | 支持通过环境变量配置输入路径    
+pl.Config.set_memory_limit() | 配置 Polars 内存使用上限   
 
 
 ### （四）最终指标统计
@@ -135,10 +135,10 @@ pl.Config.set_memory_limit()     | 配置 Polars 内存使用上限
 ---
 
 ## 六、实验体会或对改进实验的建议
-### （一）AI协作思考题（不少于300字）
+### （一）AI协作思考题
 在M1里程碑的收尾阶段，我对AI辅助开发、代码质量与工程化交付有了更深刻的认知。
 
-**代码质量的权衡**：从“能跑通的代码”到“工程级代码”，AI帮我跨越了多个关键障碍。最初的实验代码仅实现了业务逻辑，没有注释、没有异常处理、没有规范的结构，仅能在Notebook中运行。AI自动补全了完整的类型提示与Docstrings，让代码具备了可维护性；帮我重构了ETL结构，实现了模块解耦；补充了优雅的错误捕获与日志系统，让代码在生产环境中可调试、可追溯。AI将我从繁琐的规范工作中解放出来，让我能专注于业务逻辑本身，同时将代码质量提升到了工业级标准。
+**代码质量的权衡**：从“能跑通的代码”到“工程级代码”，AI帮我跨越了多个关键障碍。最初的实验代码仅实现了业务逻辑，没有注释、没有异常处理、没有规范的结构，仅能在Notebook中运行。AI自动补全了完整的类型提示，让代码具备了可维护性；帮我重构了ETL结构，实现了模块解耦；补充了优雅的错误捕获与日志系统，让代码在生产环境中可调试、可追溯。AI将我从繁琐的规范工作中解放出来，让我能专注于业务逻辑本身，同时将代码质量提升到了工业级标准。
 
 **对“黑盒”的警惕**：在AI重构过程中，确实出现过逻辑偏差。例如AI生成的会话识别代码中，错误地将`over("user_id")`的窗口函数顺序颠倒，导致会话切分逻辑完全错误。我通过单元测试与`m1_tester.py`的交叉验证发现了这个问题，通过逐行核对业务逻辑，修正了窗口函数的执行顺序，清除了AI带来的“技术债”。这让我意识到：AI是高效的工具，但绝不能完全信任，必须对核心业务逻辑进行人工校验，避免黑盒风险。
 

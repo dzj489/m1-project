@@ -16,7 +16,7 @@
 |------|------|
 | **源文件** | `user_behavior_100M.csv` |
 | **文件大小** | 3.4 GB |
-| **记录数** | 100,000,000 条 |
+| **记录数** | 100,150,807 条 |
 | **核心字段** | `user_id`, `item_id`, `behavior_type`, `timestamp` |
 | **行为类型** | `pv` (浏览), `fav` (收藏), `cart` (加购), `buy` (购买) |
 | **时间跨度** | 2017-11-25 ~ 2017-12-03（9 天） |
@@ -87,21 +87,19 @@ result = df.filter(...).group_by(...).collect()  # collect() 时才执行
 
 | 指标 | 数值 | 说明 |
 |------|------|------|
-| **最终数据总量** | 98,765,432 条 | 去重后有效记录 |
-| **去重率** | 1.23% | 删除重复记录 1,234,568 条 |
-| **总会话数** | 12,345,678 个 | 基于 30 分钟超时阈值 |
-| **平均每会话行为数** | 8.0 条 | 用户单次会话平均交互深度 |
-| **异常账号识别比例** | 2.35% | 高频点击/异常时段/刷单嫌疑 |
+| **最终数据总量** | 100,115,355 条 | 去重后有效记录 |
+| **去重率** | 0.04% | 删除重复记录 35,452 条 |
+| **总会话数** | 16,571,196 个 | 基于 30 分钟超时阈值 |
+| **平均每会话行为数** | 6.0 条 | 用户单次会话平均交互深度 |
+| **异常账号识别比例** | 0.03% | 高频点击/异常时段/刷单嫌疑 |
 
 ### 转化漏斗
 
 | 阶段 | 用户数 | 转化率 | 阶段转化率 |
 |------|--------|--------|------------|
-| **PV (浏览)** | 45,678,901 | 100.00% | - |
-| **Fav/Cart (收藏/加购)** | 18,271,560 | 40.00% | 40.00% |
-| **Buy (购买)** | 9,135,780 | 20.00% | 50.00% |
-
-> 注：以上数据为示例，实际运行后以 `pipeline_summary.txt` 为准。
+| **PV (浏览)** | 984,114 | 100.00% | - |
+| **Fav/Cart (收藏/加购)** | 486,794 | 49.47% | 49.47% |
+| **Buy (购买)** | 77,690 | 7.89% | 15.96% |
 
 ---
 
@@ -131,7 +129,7 @@ python run_m1_pipeline.py
 
 # 方式二：分步执行（调试用）
 python -c "
-from m1_data_pipeline import M1DataPipeline
+from m1_data_pipeline_optimized import M1DataPipeline
 pipeline = M1DataPipeline('m1_final_clean.parquet')
 df = pipeline.extract()
 result = pipeline.transform(df)
@@ -141,7 +139,7 @@ print(saved)
 
 # 方式三：查看查询执行计划
 python -c "
-from m1_data_pipeline import M1DataPipeline
+from m1_data_pipeline_optimized import M1DataPipeline
 pipeline = M1DataPipeline('m1_final_clean.parquet')
 df = pipeline.extract()
 pipeline.explain_plan(df)
@@ -172,13 +170,12 @@ pipeline.explain_plan(df)
 ├── benchmark.py                 # 性能基准测试
 ├── README.md                    # 项目文档
 ├── output/                      # 输出目录（运行后生成）
-│   ├── deduped_data.parquet
-│   ├── sessionized_data.parquet
-│   ├── funnel_analysis.csv
-│   ├── anomaly_diagnosis.csv
-│   └── pipeline_summary.txt
-└── logs/                        # 日志目录（可选）
-    └── pipeline.log
+    ├── deduped_data.parquet
+    ├── sessionized_data.parquet
+    ├── funnel_analysis.csv
+    ├── anomaly_diagnosis.csv
+    └── pipeline_summary.txt
+
 ```
 
 ### 关键文件说明
@@ -268,27 +265,6 @@ duckdb.query("""
 
 A: 检查 `behavior_type` 字段值是否与预期一致（pv/fav/cart/buy）。
 
----
-
-## 📝 版本历史
-
-| 版本 | 日期 | 变更 |
-|------|------|------|
-| v1.0 | 2024-01-15 | 初始版本，基础 ETL 功能 |
-| v1.1 | 2024-01-20 | 优化版本，消除冗余 collect |
-| v1.2 | 2024-01-25 | 添加谓词下推支持 |
-
----
-
-## 📄 许可证
-
-MIT License
-
----
-
-## 👥 作者
-
-M1 Data Pipeline Team
 
 ---
 
