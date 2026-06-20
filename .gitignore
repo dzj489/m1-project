@@ -1,0 +1,26 @@
+# 大数据存储文件
+/data/*.csv
+/data/*.parquet
+*.db
+*.db.tmp
+*.db.wal
+
+# Python虚拟环境
+.venv/
+env/
+test_env/
+venv/
+
+# IDE系统缓存
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# 日志、缓存、运行临时文件
+*.log
+__pycache__/
+*.pyc
+.env
+*.tmp  # 浏览器缓存、进程临时文件

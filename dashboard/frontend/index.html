@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大数据分析看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: "Microsoft YaHei", sans-serif;
+            background: #0f0f23;
+            color: #e0e0e0;
+            padding-bottom: 60px;
+        }
+        header {
+            text-align: center;
+            padding: 2rem;
+            background: linear-gradient(135deg, #1a1a3e, #2d1b69);
+        }
+        /* 任务4：LLM降级提示横幅样式 */
+        .degrade-banner {
+            width: 100%;
+            background: #c0392b;
+            color: #fff;
+            text-align: center;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            display: none;
+        }
+        .search-box {
+            text-align: center;
+            margin: 1rem 0;
+        }
+        .search-box input {
+            width: 80%; max-width: 600px;
+            padding: 0.8rem; border-radius: 8px;
+            border: none; font-size: 1rem;
+        }
+        .chart-container {
+            width: 90%; max-width: 900px;
+            height: 450px; margin: 2rem auto;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px; padding: 1rem;
+        }
+        .review-container {
+            width: 90%; max-width: 900px;
+            margin: 2rem auto; padding: 1.5rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+        }
+        .review-item {
+            padding: 10px; margin: 8px 0;
+            border-bottom: 1px solid #333;
+        }
+        .review-text { color: #fff; margin-bottom: 4px; }
+        .review-sent { color: #aaa; font-size: 14px; }
+        .empty-tip { color: #888; text-align: center; padding: 20px; }
+    </style>
+</head>
+<body>
+    <!-- 任务4：LLM降级提示横幅，默认隐藏 -->
+    <div class="degrade-banner" id="degradeTip"></div>
+
+    <header>
+        <h1>📊 大数据分析看板（任务1+2+3+4）</h1>
+        <p>双向联动 + 搜索防抖 + 平滑下钻 + 防御性健壮优化</p>
+    </header>
+
+    <div class="search-box">
+        <input type="text" id="searchInput" placeholder="关键词或正则，如 差|烂、苹果">
+    </div>
+
+    <div class="chart-container" id="categoryChart"></div>
+    <div class="chart-container" id="sentimentChart"></div>
+    <div class="review-container" id="reviewList">
+        <div class="empty-tip">请点击图表或搜索</div>
+    </div>
+
+    <script>
+        const chartDom = document.getElementById('categoryChart');
+        const sentChartDom = document.getElementById('sentimentChart');
+        const reviewContainer = document.getElementById('reviewList');
+        const searchInput = document.getElementById('searchInput');
+        const degradeTip = document.getElementById('degradeTip');
+
+        let chart = echarts.init(chartDom);
+        let sentChart = echarts.init(sentChartDom);
+
+        const dashboardState = {
+            category: null,
+            sentiment: "",
+            searchQuery: ""
+        };
+
+        const drillDownState = {
+            isDrilled: false,
+            currentCat: null
+        };
+
+        let allCategoryData = null;
+
+        // 防抖函数
+        function debounce(func, delay=400){
+            let t=null;
+            return (...args)=>{
+                clearTimeout(t);
+                t=setTimeout(()=>func.apply(this,args),delay);
+            };
+        }
+
+        // ====================== 任务4：全局状态轮询，展示LLM降级提示 ======================
+        async function checkSystemStatus() {
+            try {
+                const res = await fetch("/api/system-status", { signal: AbortSignal.timeout(3000) });
+                const status = await res.json();
+                // LLM未激活，展示顶部红色横幅
+                if (!status.llm_active && status.reason === "API_KEY_MISSING") {
+                    degradeTip.style.display = "block";
+                    degradeTip.innerText = "⚠️ 当前大模型功能已降级为内置规则库计算，请配置项目.env文件中的LLM_API_KEY以启用完整AI分析功能";
+                } else {
+                    degradeTip.style.display = "none";
+                }
+            } catch (err) {
+                console.warn("系统状态接口请求超时/失败：", err);
+            }
+        }
+        // 页面加载立即检测，每10秒自动刷新状态
+        checkSystemStatus();
+        setInterval(checkSystemStatus, 10000);
+
+        // 统一封装带超时、异常捕获的请求函数（防御网络崩溃）
+        async function safeFetch(url) {
+            try {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 4000);
+                const resp = await fetch(url, { signal: controller.signal });
+                clearTimeout(timer);
+                if (!resp.ok) throw new Error(`接口返回${resp.status}`);
+                return await resp.json();
+            } catch (e) {
+                console.error("接口请求失败：", url, e);
+                reviewContainer.innerHTML = `<div class="empty-tip">数据加载失败，网络或服务异常，请稍后刷新</div>`;
+                return null;
+            }
+        }
+
+        // 事件绑定（防重复绑定，原有优化保留）
+        function bindChartEvents() {
+            chart.off('click');
+            sentChart.off('click');
+
+            chart.on('click', async (p) => {
+                if (drillDownState.isDrilled) return;
+                const cat = p.name;
+                dashboardState.category = cat;
+                dashboardState.sentiment = "";
+
+                drillDownState.isDrilled = true;
+                drillDownState.currentCat = cat;
+
+                const subData = await safeFetch(`/api/sub-category-stats?cat=${encodeURIComponent(cat)}`);
+                if (!subData) return;
+                renderCategoryChart(subData);
+                refreshSentChart();
+                refreshReviewList();
+            });
+
+            sentChart.on('click', (p) => {
+                dashboardState.sentiment = p.seriesName;
+                if (!drillDownState.isDrilled) {
+                    renderCategoryChart(allCategoryData);
+                }
+                refreshReviewList();
+            });
+        }
+
+        function refreshChartInstances() {
+            chart.dispose();
+            sentChart.dispose();
+            chart = echarts.init(chartDom);
+            sentChart = echarts.init(sentChartDom);
+            bindChartEvents();
+        }
+
+        // 图表渲染（清空画布+非合并重绘，原有防配置污染保留）
+        function renderCategoryChart(data){
+            chart.clear();
+            const isDrilled = drillDownState.isDrilled;
+            const option = {
+                title:{
+                    text: isDrilled ? `${drillDownState.currentCat} - 子维度分布` : '商品品类分布',
+                    left:'center',textStyle:{color:'#eee'}
+                },
+                xAxis:{type:'category',data:data.categories,axisLabel:{color:'#ccc',rotate:30}},
+                yAxis:{type:'value',axisLabel:{color:'#ccc'}},
+                series:[{
+                    type:'bar',
+                    data:data.counts.map((cnt,i)=>{
+                        const catName = data.categories[i];
+                        const highlight = dashboardState.sentiment && dashboardState.category === catName;
+                        return {
+                            value:cnt,
+                            itemStyle:{
+                                color: highlight ? '#ff7043'
+                                    : new echarts.graphic.LinearGradient(0,0,0,1,[
+                                        {offset:0,color:'#7c4dff'},
+                                        {offset:1,color:'#448aff'}
+                                    ])
+                            }
+                        };
+                    }),
+                    universalTransition:{enabled:true,seriesIndex:0}
+                }],
+                graphic: isDrilled ? [{
+                    type:'text',
+                    right:20, top:20,
+                    style:{text:'返回上一级',fill:'#fff',fontSize:14,cursor:'pointer'},
+                    onclick:()=>{
+                        drillDownState.isDrilled = false;
+                        drillDownState.currentCat = null;
+                        dashboardState.category = null;
+                        dashboardState.sentiment = "";
+                        
+                        refreshChartInstances();
+                        renderCategoryChart(allCategoryData);
+                        refreshSentChart();
+                        refreshReviewList();
+                    }
+                }] : []
+            };
+            chart.setOption(option, true);
+        }
+
+        // 初始化加载品类数据
+        (async function initCategoryData(){
+            const data = await safeFetch('/api/category-distribution');
+            if (!data) return;
+            allCategoryData = data;
+            renderCategoryChart(data);
+            bindChartEvents();
+        })();
+
+        // 情感图表刷新
+        async function refreshSentChart(){
+            sentChart.clear();
+            const cat = dashboardState.category;
+            let url = '/api/sentiment-overview';
+            if(cat) url += `?cat=${encodeURIComponent(cat)}`;
+            const resp = await safeFetch(url);
+            if (!resp || !resp.data?.length) return;
+            const raw = resp.data;
+            const cats = raw.map(x=>x.category);
+            const keys = Object.keys(raw[0]).filter(k=>k!=='category');
+            const series = keys.map(k=>({
+                name:k,type:'bar',stack:'total',
+                data:raw.map(x=>x[k])
+            }));
+            const option = {
+                title:{text:cat?`${cat} 情感分布`:'各品类情感分布',left:'center',textStyle:{color:'#eee'}},
+                legend:{data:keys,textStyle:{color:'#eee'},top:30},
+                xAxis:{type:'category',data:cats,axisLabel:{color:'#ccc',rotate:30}},
+                yAxis:{type:'value',axisLabel:{color:'#ccc'}},
+                series
+            };
+            sentChart.setOption(option, true);
+        }
+        refreshSentChart();
+
+        // 评论列表渲染
+        async function refreshReviewList(){
+            const {category, sentiment, searchQuery}=dashboardState;
+            reviewContainer.innerHTML=`<div class="empty-tip">加载中...</div>`;
+            let url=`/api/reviews?limit=20`;
+            if(category) url+=`&cat=${encodeURIComponent(category)}`;
+            if(sentiment) url+=`&sentiment=${encodeURIComponent(sentiment)}`;
+            if(searchQuery) url+=`&query=${encodeURIComponent(searchQuery)}`;
+
+            const res = await safeFetch(url);
+            if (!res) return;
+            const list=res.data||[];
+            if(!list.length){
+                reviewContainer.innerHTML=`<div class="empty-tip">暂无匹配评论数据</div>`;
+                return;
+            }
+            let html=`<h3>📝 ${category||'全部'} / ${sentiment||'全部'} / ${searchQuery||'无关键词'}</h3>`;
+            list.forEach(item=>{
+                html+=`
+                <div class="review-item">
+                    <div class="review-text">${item.review}</div>
+                    <div class="review-sent">情感：${item.sentiment}</div>
+                </div>`;
+            });
+            reviewContainer.innerHTML=html;
+        }
+
+        // 搜索防抖
+        const debouncedSearch=debounce(q=>{
+            dashboardState.searchQuery=q;
+            refreshReviewList();
+        },400);
+        searchInput.addEventListener('input',e=>debouncedSearch(e.target.value));
+
+        window.addEventListener('resize',()=>{
+            chart.resize();
+            sentChart.resize();
+        });
+    </script>
+</body>
+</html>
