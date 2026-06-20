@@ -94,28 +94,38 @@
 [![peGuG8A.png](https://s41.ax1x.com/2026/04/01/peGuG8A.png)](https://imgchr.com/i/peGuG8A)
 
 ### （三）AI审计报告与代码修改
+问题优先级矩阵
+| 优先级 | 问题类别     | 具体问题       | 影响范围       | 
+|-------|---------|----------------|----------------|
+| 🔴 P0  | 内存管理     | _generate_summary 多次独立 collect | 性能下降 30-50%       | 
+| 🔴 P0  | 路径可移植性 | 主函数硬编码路径                 | 无法灵活部署          | 
+| 🟡 P1  | 内存管理     |  _stats_cache 未清理                | 长期运行内存泄漏      | 
+| 🟡 P1  | 路径可移植性 | 输出文件名不可配置               | 多项目复用困难        | 
+| 🟢 P2  | 命名规范     | 类型注解风格不统一               | 代码一致性            | 
+| 🟢 P2  | 内存管理     |  run() 未显式释放引用             | 大文件处理时 OOM 风险 | 
+
 | 优化项 | 说明 |
 |-------|---------|
-类型注解 | 统一为 Python 3.10+ 风格 (dict, `\
-内存管理| 添加 __del__ 和 cleanup() 方法，run() 显式释放引用   
-批量收集 | _generate_summary 使用 pl.collect_all() 减少 collect 次数 
-环境变量 | 支持 M1_DATA_PATH 配置输入路径             
-输出配置 | 添加 OutputFileNames TypedDict 和 output_names 参数     
-命令行 |主函数改用 argparse，支持 -i, -o, --explain, -v       
-内存限制 | 添加 pl.Config.set_memory_limit("2GB")     
+|类型注解 | 统一为 Python 3.10+ 风格 |
+|内存管理| 添加 __del__ 和 cleanup() 方法，run() 显式释放引用 |
+|批量收集 | _generate_summary 使用 pl.collect_all() 减少 collect 次数 |
+|环境变量 | 支持 M1_DATA_PATH 配置输入路径              |
+|输出配置 | 添加 OutputFileNames TypedDict 和 output_names 参数 |
+|命令行 |主函数改用 argparse，支持 -i, -o, --explain, -v |
+
 
 |新增项|说明|
 |-------|---------|
-from __future__ import annotations | 启用 Python 3.10+ 类型注解语法  
-OutputFileNames TypedDict | 输出文件名配置类型             
-DEFAULT_OUTPUT_NAMES 常量 | 默认输出文件名配置             
-__del__() 析构方法 | 对象销毁时自动清理缓存          
-cleanup() 方法 | 手动清理缓存和触发 GC           
-base_dir 参数 | 支持相对路径自动解析            
-output_names 参数| 支持自定义输出文件名            
- argparse 命令行解析 | 支持 -i, -o, --explain, -v 参数
-M1_DATA_PATH 环境变量 | 支持通过环境变量配置输入路径    
-pl.Config.set_memory_limit() | 配置 Polars 内存使用上限   
+|from __future__ import annotations | 启用 Python 3.10+ 类型注解语法 |
+|OutputFileNames TypedDict | 输出文件名配置类型             |
+|DEFAULT_OUTPUT_NAMES 常量 | 默认输出文件名配置              |
+|__del__() 析构方法 | 对象销毁时自动清理缓存 |
+|cleanup() 方法 | 手动清理缓存和触发 GC |
+|base_dir 参数 | 支持相对路径自动解析 |
+|output_names 参数| 支持自定义输出文件名             |
+|argparse 命令行解析 | 支持 -i, -o, --explain, -v 参数 |
+|M1_DATA_PATH 环境变量 | 支持通过环境变量配置输入路径 |
+|pl.Config.set_memory_limit() | 配置 Polars 内存使用上限    |
 
 
 ### （四）最终指标统计
@@ -130,7 +140,7 @@ pl.Config.set_memory_limit() | 配置 Polars 内存使用上限
 ✅ `requirements.txt`（依赖文件）
 ✅ `README.md`（技术文档）
 ✅ `实验报告.pdf`
-✅ `m1_final_clean.parquet`（GitHub下载链接）
+✅ `m1_final_clean.parquet`（[GitHub下载链接](https://github.com/dzj489/m1-project/blob/main/m1_final_clean.parquet)）
 
 ---
 
